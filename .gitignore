@@ -1,0 +1,29 @@
+# Build & Compilation Artifacts
+/target/
+*.o
+*.a
+*.so
+*.dylib
+*.rlib
+*.rmeta
+*.d
+*.tar.gz
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Process Documents
+PLAN.md
+TODO.md
+
+# Temporary & Editor Files
+*.log
+*.tmp
+*.bak
+*.bk
+**/*.rs.bk
+*~
+.DS_Store

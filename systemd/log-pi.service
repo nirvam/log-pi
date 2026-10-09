@@ -1,0 +1,32 @@
+[Unit]
+Description=log(π) - System One Decision Engine in Rust
+Documentation=https://github.com/nirvam/log-pi
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+Restart=on-failure
+RestartSec=3s
+
+# Execution and Environment
+EnvironmentFile=-/etc/default/log-pi
+ExecStart=/usr/bin/log-pi --model ${LOGPI_MODEL} --port ${LOGPI_PORT:-8080} --host ${LOGPI_HOST:-0.0.0.0} --threads ${LOGPI_THREADS:-4} --ctx-size ${LOGPI_CTX_SIZE:-4096}
+
+# Security Sandboxing & Hardening
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+LockPersonality=true
+NoNewPrivileges=true
+CapabilityBoundingSet=
+RestrictRealtime=true
+RestrictNamespaces=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

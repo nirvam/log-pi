@@ -1,0 +1,25 @@
+[Unit]
+Description=log(π) System One Decision Engine Container (Podman Quadlet)
+After=network-online.target
+
+[Container]
+Image=localhost/log-pi:latest
+ContainerName=log-pi
+PublishPort=8080:8080
+Volume=%h/models:/models:ro,Z
+Environment=LOGPI_MODEL=/models/model.gguf
+Environment=LOGPI_PORT=8080
+Environment=LOGPI_HOST=0.0.0.0
+Environment=LOGPI_THREADS=4
+Environment=LOGPI_CTX_SIZE=4096
+
+# Rootless Security
+NoNewPrivileges=true
+DropCapability=ALL
+
+[Service]
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=default.target
