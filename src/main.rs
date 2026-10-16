@@ -9,6 +9,7 @@ use log_pi::cli::Cli;
 use log_pi::config::ServerConfig;
 use log_pi::engine::template::ChatTemplate;
 use log_pi::engine::{spawn_engine_worker, LlamaEngine, LlamaModel};
+use log_pi::metrics::Metrics;
 use log_pi::server::{cors_layer, create_router, AppState};
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
@@ -76,19 +77,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let template = ChatTemplate::for_model(&model, config.chat_template.as_deref())?;
     let engine = LlamaEngine::new(model, template, config.context_params())?;
     let model_info = engine.model_info();
+
+    // Metrics are optional; if disabled the registry is never allocated, so
+    // instrumentation points just no-op through `Option`.
+    let metrics = config.metrics_enabled.then(Metrics::new);
+    info!(enabled = config.metrics_enabled, "Runtime metrics");
+
     let (engine_handle, engine_worker) = spawn_engine_worker(
         engine,
         config.limits.queue_depth,
         config.limits.request_timeout,
+        metrics.clone(),
     )?;
     let app_state = AppState::new(
         engine_handle,
         model_info,
         config.model_name.clone(),
         config.limits,
+        metrics,
+        config.api_keys.clone(),
     );
 
     let mut app = create_router(app_state).layer(TraceLayer::new_for_http());
+    if config.api_keys.is_empty() {
+        info!("API key auth disabled (set --api-key to enable)");
+    } else {
+        info!(key_count = config.api_keys.len(), "API key auth enabled");
+    }
     match cors_layer(&config.cors_origins)? {
         Some(cors) => {
             info!(origins = ?config.cors_origins, "CORS enabled");

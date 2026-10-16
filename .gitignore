@@ -1,5 +1,6 @@
 # Build & Compilation Artifacts
 /target/
+/.cargo/
 *.o
 *.a
 *.so
@@ -18,6 +19,7 @@ __pycache__/
 # Process Documents
 PLAN.md
 TODO.md
+REVIEW.md
 
 # Temporary & Editor Files
 *.log

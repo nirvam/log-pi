@@ -1,6 +1,6 @@
 [package]
 name = "log-pi"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["nirvam"]
 description = "System One Decision Engine in Rust - 100% TypeSafe Jev Wire Protocol Compatible"
@@ -20,6 +20,7 @@ minijinja = { version = "2.7", features = ["macros"] }
 indexmap = { version = "2.6", features = ["serde"] }
 tower-http = { version = "0.6", features = ["trace", "cors"] }
 minijinja-contrib = { version = "2", features = ["pycompat"] }
+prometheus-client = { version = "0.25.1", features = ["test-util"] }
 
 [build-dependencies]
 pkg-config = "0.3"
@@ -31,3 +32,6 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
+
+[dev-dependencies]
+tower = { version = "0.5.3", features = ["util"] }

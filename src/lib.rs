@@ -7,5 +7,6 @@ pub mod cli;
 pub mod config;
 pub mod engine;
 pub mod errors;
+pub mod metrics;
 pub mod protocol;
 pub mod server;

@@ -142,6 +142,15 @@ pub struct Cli {
     /// Comma-separated CORS origins allowed to call the API ('*' = any); empty disables CORS
     #[arg(long, value_delimiter = ',', env = "LOGPI_CORS_ORIGINS")]
     pub cors_origins: Vec<String>,
+
+    /// Expose a Prometheus-compatible metrics endpoint at GET /metrics
+    #[arg(long, env = "LOGPI_METRICS")]
+    pub metrics: bool,
+
+    /// API key(s) for `Authorization: Bearer` auth; comma-separated for multiple.
+    /// Empty disables authentication. Data endpoints only; /health and /metrics stay open.
+    #[arg(long, value_delimiter = ',', env = "LOGPI_API_KEY")]
+    pub api_key: Vec<String>,
 }
 
 /// Flash Attention mode matching llama-server (`-fa, --flash-attn [on|off|auto]`).

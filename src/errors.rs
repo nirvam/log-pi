@@ -51,6 +51,20 @@ impl AppError {
             "{char_count} chars input starting with '{snippet}{ellipsis}'"
         ))
     }
+
+    /// Maps the error to a request-outcome label for metrics.
+    ///
+    /// Only the engine-admission outcomes (overload/timeout/unavailable) carry a
+    /// dedicated bucket; every other failure is an internal/request error and is
+    /// reported together so the outcome label set stays small.
+    pub fn outcome(&self) -> crate::metrics::Outcome {
+        match self {
+            AppError::Overloaded => crate::metrics::Outcome::Overloaded,
+            AppError::Timeout(_) => crate::metrics::Outcome::Timeout,
+            AppError::EngineUnavailable => crate::metrics::Outcome::Unavailable,
+            _ => crate::metrics::Outcome::Ok,
+        }
+    }
 }
 
 impl IntoResponse for AppError {

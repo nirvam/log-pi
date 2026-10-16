@@ -66,6 +66,10 @@ pub struct ServerConfig {
     pub chat_template: Option<String>,
     pub limits: ServiceLimits,
     pub cors_origins: Vec<String>,
+    /// Whether to expose `GET /metrics` (default: false, aligned with llama-server).
+    pub metrics_enabled: bool,
+    /// Accepted bearer API keys; empty disables authentication.
+    pub api_keys: Vec<String>,
 }
 
 impl ServerConfig {
@@ -135,6 +139,8 @@ impl ServerConfig {
                 request_timeout: Duration::from_secs(u64::from(cli.request_timeout_secs)),
             },
             cors_origins: cli.cors_origins,
+            metrics_enabled: cli.metrics,
+            api_keys: cli.api_key,
         })
     }
 
@@ -176,6 +182,8 @@ mod tests {
             queue_depth: 32,
             request_timeout_secs: 60,
             cors_origins: vec![],
+            metrics: false,
+            api_key: vec![],
         }
     }
 

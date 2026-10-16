@@ -11,7 +11,7 @@
 //! - **Ownership:** the engine is never shared, so no lock is needed.
 
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use indexmap::IndexMap;
 use tokio::sync::mpsc::error::TrySendError;
@@ -20,6 +20,7 @@ use tracing::{debug, error, info};
 
 use crate::engine::LlamaEngine;
 use crate::errors::AppError;
+use crate::metrics::Metrics;
 use crate::protocol::{Answer, Question};
 
 /// Answers keyed by question id, plus the number of tokens evaluated.
@@ -47,6 +48,9 @@ impl BatchSolver for LlamaEngine {
 struct Job {
     state: String,
     questions: IndexMap<String, Question>,
+    /// Wall-clock instant the job was created, so the engine thread can measure
+    /// the true queue-wait time (independent of the inference duration).
+    queued_at: Instant,
     reply: oneshot::Sender<Result<BatchOutput, AppError>>,
 }
 
@@ -65,10 +69,14 @@ pub struct EngineWorker {
 /// Starts the engine thread.
 ///
 /// `queue_depth` bounds the jobs waiting behind the one currently running.
+/// `metrics` (when enabled) lets the engine thread record queue depth, queue-wait
+/// and inference-time distributions at the point where they are cheapest to
+/// measure precisely.
 pub fn spawn_engine_worker<S>(
     solver: S,
     queue_depth: usize,
     timeout: Duration,
+    metrics: Option<Metrics>,
 ) -> std::io::Result<(EngineHandle, EngineWorker)>
 where
     S: BatchSolver + Send + 'static,
@@ -76,19 +84,33 @@ where
     let (tx, rx) = mpsc::channel(queue_depth.max(1));
     let thread = thread::Builder::new()
         .name("log-pi-engine".to_string())
-        .spawn(move || run(solver, rx))?;
+        .spawn(move || run(solver, rx, metrics))?;
 
     Ok((EngineHandle { tx, timeout }, EngineWorker { thread }))
 }
 
-fn run<S: BatchSolver>(mut solver: S, mut rx: mpsc::Receiver<Job>) {
+fn run<S: BatchSolver>(mut solver: S, mut rx: mpsc::Receiver<Job>, metrics: Option<Metrics>) {
     while let Some(job) = rx.blocking_recv() {
+        // Snapshot how many jobs are queued behind the one we just picked up.
+        if let Some(m) = &metrics {
+            m.set_queue_depth(rx.len());
+        }
+
         if job.reply.is_closed() {
             debug!("Skipping job abandoned by its caller before it started");
             continue;
         }
 
+        if let Some(m) = &metrics {
+            m.observe_queue_wait(job.queued_at.elapsed().as_secs_f64());
+        }
+
+        let started = Instant::now();
         let result = solver.solve_batch(&job.state, &job.questions);
+        if let Some(m) = &metrics {
+            m.observe_infer(started.elapsed().as_secs_f64());
+        }
+
         if job.reply.send(result).is_err() {
             debug!("Caller gave up before the result was delivered");
         }
@@ -108,6 +130,7 @@ impl EngineHandle {
             .try_send(Job {
                 state,
                 questions,
+                queued_at: Instant::now(),
                 reply,
             })
             .map_err(|err| match err {
@@ -209,7 +232,7 @@ mod tests {
     async fn returns_the_solver_result() {
         let (solver, gate) = gated_solver();
         let (handle, worker) =
-            spawn_engine_worker(solver, 1, Duration::from_secs(5)).expect("spawn");
+            spawn_engine_worker(solver, 1, Duration::from_secs(5), None).expect("spawn");
         gate.release.send(()).expect("pre-release");
 
         let (answers, tokens) = submit(&handle).await.expect("solved");
@@ -224,7 +247,7 @@ mod tests {
     async fn rejects_when_queue_is_full() {
         let (solver, gate) = gated_solver();
         let (handle, worker) =
-            spawn_engine_worker(solver, 1, Duration::from_secs(5)).expect("spawn");
+            spawn_engine_worker(solver, 1, Duration::from_secs(5), None).expect("spawn");
 
         // Job 1 occupies the engine; wait until it is actually running.
         let running = tokio::spawn({
@@ -262,7 +285,7 @@ mod tests {
     async fn times_out_and_skips_abandoned_queued_jobs() {
         let (solver, gate) = gated_solver();
         let (handle, worker) =
-            spawn_engine_worker(solver, 2, Duration::from_millis(100)).expect("spawn");
+            spawn_engine_worker(solver, 2, Duration::from_millis(100), None).expect("spawn");
 
         // Job 1 runs (and blocks); job 2 waits in the queue. Both callers time out.
         let (first, second) = tokio::join!(submit(&handle), submit(&handle));
@@ -280,7 +303,7 @@ mod tests {
     #[tokio::test]
     async fn reports_unavailable_after_worker_crash() {
         let (handle, worker) =
-            spawn_engine_worker(PanickingSolver, 1, Duration::from_secs(5)).expect("spawn");
+            spawn_engine_worker(PanickingSolver, 1, Duration::from_secs(5), None).expect("spawn");
         assert!(handle.is_available());
 
         assert!(matches!(

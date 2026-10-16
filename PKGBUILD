@@ -1,6 +1,6 @@
 # Maintainer: nirvam
 pkgname=log-pi
-pkgver=0.2.0
+pkgver=0.3.0
 pkgrel=1
 pkgdesc="System One Decision Engine in Rust - 100% TypeSafe Jev Wire Protocol Compatible"
 arch=('x86_64' 'aarch64')

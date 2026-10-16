@@ -481,7 +481,6 @@ impl<'a> Drop for ContextMemoryGuard<'a> {
     }
 }
 
-
 /// Immutable model facts, captured once so request handlers never need the engine.
 #[derive(Debug, Clone, Copy)]
 pub struct ModelInfo {

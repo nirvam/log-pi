@@ -99,10 +99,11 @@ impl PreparedQuestion {
         let probs = math::softmax(&candidates);
         let coverage = math::candidate_coverage(logits, &candidates);
 
-        let rounded: Vec<f32> = probs.iter().map(|&p| round_to(p, 3)).collect();
-        // Strict comparison: on ties the first option wins.
+        // argmax / confidence use the unrounded probabilities; rounding is only
+        // applied to the serialized display values so the winner is never chosen
+        // off a rounded magnitude (matters when two options are within half an ulp).
         let (best_idx, confidence) =
-            rounded
+            probs
                 .iter()
                 .copied()
                 .enumerate()
@@ -116,6 +117,10 @@ impl PreparedQuestion {
                         }
                     },
                 );
+
+        // Display probabilities are rounded independently; their sum is only
+        // approximately 1.0 (e.g. three-way split rounds to 0.333 + 0.333 + 0.333).
+        let rounded: Vec<f32> = probs.iter().map(|&p| round_to(p, 3)).collect();
 
         let answer = match self.kind {
             Kind::Noul => Answer::Noul { noul: rounded[0] },
@@ -204,7 +209,10 @@ mod tests {
             panic!("expected a choice answer");
         };
         assert_eq!(choice, "infra");
-        assert_eq!(confidence, probabilities["infra"]);
+        // confidence is the unrounded winner probability; the serialized
+        // probabilities are rounded to 3 decimals for display, so the two may
+        // differ by up to half an ulp and their sum is only approximating 1.0.
+        assert!((confidence - probabilities["infra"]).abs() < 5e-4);
         assert_eq!(
             probabilities.keys().collect::<Vec<_>>(),
             ["billing", "infra", "sales"]
